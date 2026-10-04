@@ -16,7 +16,8 @@ let year=kstNow.getFullYear(),month=kstNow.getMonth(),selectedDay=null,active=ne
 try{const saved=JSON.parse(localStorage.getItem('matchday-teams'));if(Array.isArray(saved))active=new Set(saved.filter(id=>teams.some(t=>t.id===id)));}catch{}
 const teamOf=id=>teams.find(t=>t.id===id);
 const sigil=t=>`<span class="team-sigil" style="--color:${t.color}"><img src="/logos/${t.id}.${t.id==='f1'?'svg':'png'}" alt="${t.name} 로고"></span>`;
-function matchup(e){if(!Array.isArray(e.participants)||e.participants.length!==2)return escapeHTML(e.title);return e.participants.map(p=>`<span class="match-team">${p.logo?`<img class="opponent-logo" src="${escapeHTML(p.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<span>${escapeHTML(p.name==='Nongshim RedForce'?'농심 레드포스':p.name)}</span></span>`).join('<span class="versus">vs</span>');}
+function logoURL(src){try{return new URL(src).hostname==='owcdn.net'?'/api/logo?src='+encodeURIComponent(src):src;}catch{return '';}}
+function matchup(e){if(!Array.isArray(e.participants)||e.participants.length!==2)return escapeHTML(e.title);return e.participants.map(p=>`<span class="match-team">${p.logo?`<img class="opponent-logo" src="${escapeHTML(logoURL(p.logo))}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<span>${escapeHTML(p.name==='Nongshim RedForce'?'농심 레드포스':p.name)}</span></span>`).join('<span class="versus">vs</span>');}
 function dayLabel(date){return new Date(`${date}T12:00:00+09:00`).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',month:'long',day:'numeric',weekday:'short'});}
 function render(){
  $('teams').innerHTML=teams.map(t=>`<button class="team-filter" data-team="${t.id}" aria-pressed="${active.has(t.id)}" aria-label="${t.name} 일정 ${active.has(t.id)?'숨기기':'보기'}">${sigil(t)}<span class="team-name">${t.name}<small>${t.sport}</small></span><span class="check">${active.has(t.id)?'✓':''}</span></button>`).join('');
@@ -31,7 +32,7 @@ function render(){
  const list=selectedDay?visible.filter(e=>e.date===selectedDay):monthly;
  $('agenda-title').textContent=selectedDay?dayLabel(selectedDay):`${month+1}월 경기 일정`;$('reset-day').hidden=!selectedDay;
  $('agenda').innerHTML=list.length?list.map(e=>{const t=teamOf(e.team);return `<article class="match-card"><div class="match-top"><span>${dayLabel(e.date)}</span><time datetime="${e.date}T${e.time||'시간 미정'}:00+09:00">${e.time||'시간 미정'} KST · ${escapeHTML(e.status||'예정')}</time></div><div class="match-main">${e.participants?.length===2?"":sigil(t)}<h3 class="matchup">${matchup(e)}${e.score?`<strong class="score">${escapeHTML(e.score)}</strong>`:""}</h3></div><p>${escapeHTML(e.venue)} · <a href="${escapeHTML(e.source||t.source)}" target="_blank" rel="noopener noreferrer">일정 출처</a></p></article>`;}).join(''):`<div class="empty">${active.size?([...statuses.values()].some(r=>r.loading)?'경기 일정을 불러오는 중이에요.':([...statuses.values()].some(r=>!r.ok)?'일부 출처를 확인하지 못했어요.<br>아래 연결 상태를 확인해 주세요.':'이 기간에 확인된 경기가 없어요.')):'선택한 팀이 없어요.<br>보고 싶은 팀을 눌러 주세요.'}</div>`;
- document.querySelectorAll('.opponent-logo').forEach(img=>img.addEventListener('error',()=>img.remove(),{once:true}));
+ document.querySelectorAll('.opponent-logo').forEach(img=>img.addEventListener('error',()=>{if(img.src.includes('6399bb707aacb.png')){img.src='/logos/ns.png';}else{img.style.display='none';}},{once:true}));
  const upcoming=visible.find(e=>e.time&&!['종료','취소','연기'].includes(e.status)&&new Date(`${e.date}T${e.time||'시간 미정'}:00+09:00`)>new Date());
  $('next-title').textContent=upcoming?upcoming.title:'다음 경기를 기다리는 중';
  $('next-meta').textContent=upcoming?`${teamOf(upcoming.team).sport} · ${upcoming.venue}`:'등록된 일정 중 다가오는 경기가 없습니다.';

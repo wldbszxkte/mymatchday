@@ -6,3 +6,8 @@
   from = "/api/schedule"
   to = "/.netlify/functions/schedule"
   status = 200
+
+[[redirects]]
+  from = "/api/logo"
+  to = "/.netlify/functions/logo"
+  status = 200
