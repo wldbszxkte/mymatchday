@@ -16,7 +16,7 @@ let year=kstNow.getFullYear(),month=kstNow.getMonth(),selectedDay=null,active=ne
 try{const saved=JSON.parse(localStorage.getItem('matchday-teams'));if(Array.isArray(saved))active=new Set(saved.filter(id=>teams.some(t=>t.id===id)));}catch{}
 const teamOf=id=>teams.find(t=>t.id===id);
 const sigil=t=>`<span class="team-sigil" style="--color:${t.color}"><img src="/logos/${t.id}.${t.id==='f1'?'svg':'png'}" alt="${t.name} 로고"></span>`;
-function logoURL(src){try{return new URL(src).hostname==='owcdn.net'?'/api/logo?src='+encodeURIComponent(src):src;}catch{return '';}}
+function logoURL(src){try{return new URL(src).hostname==='owcdn.net'?'/.netlify/functions/logo?src='+encodeURIComponent(src):src;}catch{return '';}}
 function matchup(e){if(!Array.isArray(e.participants)||e.participants.length!==2)return escapeHTML(e.title);return e.participants.map(p=>`<span class="match-team">${p.logo?`<img class="opponent-logo" src="${escapeHTML(logoURL(p.logo))}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<span>${escapeHTML(p.name==='Nongshim RedForce'?'농심 레드포스':p.name)}</span></span>`).join('<span class="versus">vs</span>');}
 function dayLabel(date){return new Date(`${date}T12:00:00+09:00`).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',month:'long',day:'numeric',weekday:'short'});}
 function render(){
@@ -55,3 +55,4 @@ async function loadMonth(force=false){const seq=++loadSequence;const key=`${year
 $('refresh').onclick=()=>loadMonth(true);$('month-picker').onchange=e=>{if(!/^20\d{2}-(0[1-9]|1[0-2])$/.test(e.target.value))return;[year,month]=e.target.value.split('-').map(Number);month--;selectedDay=null;render();loadMonth();};
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadMonth();});setInterval(()=>{if(!document.hidden)loadMonth();},300000);loadMonth();
 if(document.modelContext?.registerTool){try{document.modelContext.registerTool({name:'read_matchday_schedule',description:'현재 달의 팀별 경기 및 연결 상태를 조회합니다.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:true},execute(input){if(!input||Object.keys(input).length)throw Error('빈 객체를 입력하세요.');return {month:year+'-'+pad(month+1),events:events.filter(e=>active.has(e.team)),sources:Object.fromEntries(statuses)};}});}catch{}}
+
