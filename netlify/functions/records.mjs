@@ -1,0 +1,2 @@
+import {getRecords} from '../../records-sources.mjs';
+export async function handler(event){try{return {statusCode:200,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'public, max-age=60'},body:JSON.stringify(await getRecords(event.queryStringParameters?.team))};}catch(error){return {statusCode:502,headers:{'Content-Type':'application/json','Cache-Control':'no-store'},body:JSON.stringify({ok:false,error:error.message})};}}

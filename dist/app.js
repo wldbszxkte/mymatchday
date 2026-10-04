@@ -19,6 +19,25 @@ const sigil=t=>`<span class="team-sigil" style="--color:${t.color}"><img src="/l
 function logoURL(src){try{return new URL(src).hostname==='owcdn.net'?'/.netlify/functions/logo?src='+encodeURIComponent(src):src;}catch{return '';}}
 function matchup(e){if(!Array.isArray(e.participants)||e.participants.length!==2)return escapeHTML(e.title);return e.participants.map(p=>`<span class="match-team">${p.logo?`<img class="opponent-logo" src="${escapeHTML(logoURL(p.logo))}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<span>${escapeHTML(p.name==='Nongshim RedForce'?'농심 레드포스':p.name)}</span></span>`).join('<span class="versus">vs</span>');}
 function dayLabel(date){return new Date(`${date}T12:00:00+09:00`).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',month:'long',day:'numeric',weekday:'short'});}
+let agendaPositionKey='';
+function positionAgenda(agenda,list,key){
+ if(agendaPositionKey===key)return;
+ if(selectedDay||!today.startsWith(year+'-'+pad(month+1))){agenda.scrollTop=0;agendaPositionKey=key;return;}
+ const index=list.findIndex(e=>e.date>=today);
+ if(index<0)return;
+ const target=agenda.children[index];
+ if(!target)return;
+ agenda.scrollTop+=target.getBoundingClientRect().top-agenda.getBoundingClientRect().top;
+ agendaPositionKey=key;
+}
+function matchResult(e){
+ if(e.status!=='종료'||!e.score||e.team==='f1')return '';
+ const score=e.score.match(/^(\d+)\s*:\s*(\d+)$/);if(!score)return '';
+ const aliases={lotte:/롯데|lotte/i,daegu:/대구|daegu/i,barca:/바르셀로나|barcelona/i,hle:/^HLE$|Hanwha Life/i,blg:/^BLG$|Bilibili/i,ns:/농심|Nongshim/i};
+ const index=(e.participants||[]).findIndex(p=>aliases[e.team]?.test(p.name));if(index<0)return '';
+ const own=Number(score[index+1]),other=Number(score[2-index]),result=own===other?'무':own>other?'승':'패';
+ return '<span class="match-result result-'+(result==='승'?'win':result==='패'?'loss':'draw')+'" aria-label="응원팀 '+result+'">'+result+'</span>';
+}
 function render(){
  $('teams').innerHTML=teams.map(t=>`<button class="team-filter" data-team="${t.id}" aria-pressed="${active.has(t.id)}" aria-label="${t.name} 일정만 보기">${sigil(t)}<span class="team-name">${t.name}<small>${t.sport}</small></span><span class="check">${active.has(t.id)?'✓':''}</span></button>`).join('');
  document.querySelectorAll('[data-team]').forEach(b=>b.onclick=()=>{active=active.size===1&&active.has(b.dataset.team)?new Set(teams.map(t=>t.id)):new Set([b.dataset.team]);render();});
@@ -32,7 +51,10 @@ function render(){
  $('count').textContent=`등록된 일정 ${monthly.length}개`;
  const list=selectedDay?visible.filter(e=>e.date===selectedDay):monthly;
  $('agenda-title').textContent=selectedDay?dayLabel(selectedDay):`${month+1}월 경기 일정`;$('reset-day').hidden=!selectedDay;
- $('agenda').innerHTML=list.length?list.map(e=>{const t=teamOf(e.team);return `<article class="match-card"><div class="match-top"><span>${dayLabel(e.date)}</span><time datetime="${e.date}T${e.time||'시간 미정'}:00+09:00">${e.time||'시간 미정'} KST · ${escapeHTML(e.status||'예정')}</time></div><div class="match-main">${e.participants?.length===2?"":sigil(t)}<h3 class="matchup">${matchup(e)}${e.score?`<strong class="score">${escapeHTML(e.score)}</strong>`:""}</h3></div><p>${escapeHTML(e.venue)} · <a href="${escapeHTML(e.source||t.source)}" target="_blank" rel="noopener noreferrer">일정 출처</a></p></article>`;}).join(''):`<div class="empty">${active.size?([...statuses.values()].some(r=>r.loading)?'경기 일정을 불러오는 중이에요.':([...statuses.values()].some(r=>!r.ok)?'일부 출처를 확인하지 못했어요.<br>아래 연결 상태를 확인해 주세요.':'이 기간에 확인된 경기가 없어요.')):'선택한 팀이 없어요.<br>보고 싶은 팀을 눌러 주세요.'}</div>`;
+ const agenda=$('agenda'),previousAgendaScroll=agenda.scrollTop;
+ $('agenda').innerHTML=list.length?list.map(e=>{const t=teamOf(e.team);return `<article class="match-card${e.date===today?' agenda-today':''}" data-match-date="${e.date}"><div class="match-top"><span>${dayLabel(e.date)}${e.date===today?'<strong class="agenda-today-badge">오늘</strong>':''}</span><time datetime="${e.date}T${e.time||'시간 미정'}:00+09:00">${e.time||'시간 미정'} KST · ${escapeHTML(e.status||'예정')}</time></div><div class="match-main">${e.participants?.length===2?"":sigil(t)}<h3 class="matchup">${matchup(e)}${e.score?`<strong class="score">${escapeHTML(e.score)}${matchResult(e)}</strong>`:""}</h3></div><p>${escapeHTML(e.venue)} · <a href="${escapeHTML(e.source||t.source)}" target="_blank" rel="noopener noreferrer">일정 출처</a></p></article>`;}).join(''):`<div class="empty">${active.size?([...statuses.values()].some(r=>r.loading)?'경기 일정을 불러오는 중이에요.':([...statuses.values()].some(r=>!r.ok)?'일부 출처를 확인하지 못했어요.<br>아래 연결 상태를 확인해 주세요.':'이 기간에 확인된 경기가 없어요.')):'선택한 팀이 없어요.<br>보고 싶은 팀을 눌러 주세요.'}</div>`;
+ agenda.scrollTop=previousAgendaScroll;
+ positionAgenda(agenda,list,`${year}-${month}|${selectedDay||''}|${[...active].sort().join(',')}`);
  document.querySelectorAll('.opponent-logo').forEach(img=>img.addEventListener('error',()=>{if(img.src.includes('6399bb707aacb.png')){img.src='/logos/ns.png';}else{img.style.display='none';}},{once:true}));
  const upcoming=visible.find(e=>e.time&&!['종료','취소','연기'].includes(e.status)&&new Date(`${e.date}T${e.time||'시간 미정'}:00+09:00`)>new Date());
  $('next-title').textContent=upcoming?upcoming.title:'다음 경기를 기다리는 중';
@@ -47,11 +69,11 @@ $('reset-day').onclick=()=>{selectedDay=null;render();};
 $('all-teams').onclick=()=>{active=new Set(teams.map(t=>t.id));render();};
 render();
 function renderStatus(){
- $('source-list').innerHTML=teams.map(t=>{const id=t.id==='hle'||t.id==='blg'?'lol':t.id==='ns'?'vlr':t.id;const r=statuses.get(id);let message=r?(r.loading?'불러오는 중…':r.ok?`연결됨 · ${r.events.filter(e=>e.team===t.id).length}경기`:r.stale?'갱신 실패 · 이전 확인 자료':'연결 실패 · 재시도 필요'):'대기 중';const at=r?.checkedAt?new Date(r.checkedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';return `<div class="source-row"><a href="${t.source}" target="_blank" rel="noopener noreferrer">${t.name}</a><span title="${escapeHTML(r?.error||r?.scope||'')}" class="${r&&!r.ok&&!r.loading?'error':''}">${message}${at?`<small>${at} 확인</small>`:''}</span></div>`;}).join('');
+ $('source-list').innerHTML=teams.map(t=>{const id=t.id==='hle'||t.id==='blg'?'lol':t.id==='ns'?'vlr':t.id;const r=statuses.get(id);let message=r?(r.loading?'불러오는 중…':r.ok?`연결됨 · ${r.events.filter(e=>e.team===t.id).length}경기`:r.stale?'업데이트 지연 · 이전 기록 표시':'연결 실패 · 재시도 필요'):'대기 중';const at=r?.checkedAt?new Date(r.checkedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';return `<div class="source-row"><a href="${t.source}" target="_blank" rel="noopener noreferrer">${t.name}</a><span title="${escapeHTML(r?.error||r?.scope||'')}" class="${r&&!r.ok&&!r.loading?'error':''}">${message}${at?`<small>마지막 확인 ${at}</small>`:''}</span></div>`;}).join('');
 }
 const monthSnapshots=new Map(),lastLoaded=new Map();let currentMonthRequest=null;
-function readMonthSnapshot(key){if(monthSnapshots.has(key))return monthSnapshots.get(key);try{const saved=JSON.parse(localStorage.getItem('matchday-schedule-'+key));if(saved&&Array.isArray(saved.sources)){const rows=new Map(saved.sources.filter(([source,data])=>['daegu','barca','lotte','lol','vlr','f1'].includes(source)&&Array.isArray(data?.events)));monthSnapshots.set(key,rows);return rows;}}catch{}return new Map();}
-function saveMonthSnapshot(key,rows){monthSnapshots.set(key,new Map(rows));try{localStorage.setItem('matchday-schedule-'+key,JSON.stringify({sources:[...rows]}));const keys=Object.keys(localStorage).filter(k=>k.startsWith('matchday-schedule-')).sort();while(keys.length>12)localStorage.removeItem(keys.shift());}catch{}}
+function readMonthSnapshot(key){if(monthSnapshots.has(key))return monthSnapshots.get(key);try{const saved=JSON.parse(localStorage.getItem('matchday-schedule-v2-'+key));if(saved&&Array.isArray(saved.sources)){const rows=new Map(saved.sources.filter(([source,data])=>['daegu','barca','lotte','lol','vlr','f1'].includes(source)&&Array.isArray(data?.events)));monthSnapshots.set(key,rows);return rows;}}catch{}return new Map();}
+function saveMonthSnapshot(key,rows){monthSnapshots.set(key,new Map(rows));try{localStorage.setItem('matchday-schedule-v2-'+key,JSON.stringify({sources:[...rows]}));const keys=Object.keys(localStorage).filter(k=>k.startsWith('matchday-schedule-v2-')).sort();while(keys.length>12)localStorage.removeItem(keys.shift());}catch{}}
 async function loadMonth(force=false){
  const key=year+'-'+pad(month+1);
  if(currentMonthRequest?.key===key)return currentMonthRequest.promise;
