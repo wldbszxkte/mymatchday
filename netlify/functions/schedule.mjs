@@ -7,7 +7,7 @@ export default async function handler(request) {
   try {
     const result = await getSchedule(source, month, url.origin, url.searchParams.get('refresh') === '1');
     return new Response(JSON.stringify(result), {
-      headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+      headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': result.ok && !result.stale && url.searchParams.get('refresh') !== '1' ? 'public, max-age=60' : 'no-store' },
     });
   } catch {
     return new Response(JSON.stringify({ ok: false, events: [], error: '일정 요청이 올바르지 않습니다.' }), { status: 400, headers: { 'content-type': 'application/json' } });
