@@ -38,6 +38,11 @@ function matchResult(e){
  const own=Number(score[index+1]),other=Number(score[2-index]),result=own===other?'무':own>other?'승':'패';
  return '<span class="match-result result-'+(result==='승'?'win':result==='패'?'loss':'draw')+'" aria-label="응원팀 '+result+'">'+result+'</span>';
 }
+function agendaEventsForView(monthly,visible,day,currentMonth,todayDate,mobile){
+ if(day)return visible.filter(e=>e.date===day);
+ if(!mobile||!todayDate.startsWith(currentMonth))return monthly;
+ return [...monthly.filter(e=>e.date>=todayDate),...monthly.filter(e=>e.date<todayDate)];
+}
 function render(){
  $('teams').innerHTML=teams.map(t=>`<button class="team-filter" data-team="${t.id}" aria-pressed="${active.has(t.id)}" aria-label="${t.name} 일정만 보기">${sigil(t)}<span class="team-name">${t.name}<small>${t.sport}</small></span><span class="check">${active.has(t.id)?'✓':''}</span></button>`).join('');
  document.querySelectorAll('[data-team]').forEach(b=>b.onclick=()=>{active=active.size===1&&active.has(b.dataset.team)?new Set(teams.map(t=>t.id)):new Set([b.dataset.team]);render();});
@@ -49,12 +54,13 @@ function render(){
  $('calendar').innerHTML=Array.from({length:cells},(_,i)=>{const d=new Date(year,month,i-first+1),date=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,ev=visible.filter(e=>e.date===date);return `<button class="day ${d.getMonth()!==month?'dim':''} ${date===today?'is-today':''} ${date===selectedDay?'selected':''}" data-date="${date}" aria-pressed="${date===selectedDay}" aria-label="${dayLabel(date)}, 등록된 일정 ${ev.length}개"><span class="day-number">${d.getDate()}</span>${ev.slice(0,2).map(e=>`<span class="event-chip" style="--color:${teamOf(e.team).color}" title="${e.time||'시간 미정'} ${escapeHTML(e.title)}"><span class="chip-team">${teamOf(e.team).short}</span><span class="chip-time">${e.time||'미정'}</span></span>`).join('')}${ev.length>2?`<span class="more">+${ev.length-2}경기</span>`:''}</button>`;}).join('');
  document.querySelectorAll('[data-date]').forEach(b=>b.onclick=()=>{selectedDay=selectedDay===b.dataset.date?null:b.dataset.date;const d=b.dataset.date.split('-').map(Number);if(d[0]!==year||d[1]-1!==month){year=d[0];month=d[1]-1;render();loadMonth();}else render();});
  $('count').textContent=`등록된 일정 ${monthly.length}개`;
- const list=selectedDay?visible.filter(e=>e.date===selectedDay):monthly;
+ const mobileAgenda=window.matchMedia('(max-width:700px)').matches;
+ const list=agendaEventsForView(monthly,visible,selectedDay,prefix,today,mobileAgenda);
  $('agenda-title').textContent=selectedDay?dayLabel(selectedDay):`${month+1}월 경기 일정`;$('reset-day').hidden=!selectedDay;
  const agenda=$('agenda'),previousAgendaScroll=agenda.scrollTop;
  $('agenda').innerHTML=list.length?list.map(e=>{const t=teamOf(e.team);return `<article class="match-card${e.date===today?' agenda-today':''}" data-match-date="${e.date}"><div class="match-top"><span>${dayLabel(e.date)}${e.date===today?'<strong class="agenda-today-badge">오늘</strong>':''}</span><time datetime="${e.date}T${e.time||'시간 미정'}:00+09:00">${e.time||'시간 미정'} KST · ${escapeHTML(e.status||'예정')}</time></div><div class="match-main">${e.participants?.length===2?"":sigil(t)}<h3 class="matchup">${matchup(e)}${e.score?`<strong class="score">${escapeHTML(e.score)}${matchResult(e)}</strong>`:""}</h3></div><p>${escapeHTML(e.venue)} · <a href="${escapeHTML(e.source||t.source)}" target="_blank" rel="noopener noreferrer">일정 출처</a></p></article>`;}).join(''):`<div class="empty">${active.size?([...statuses.values()].some(r=>r.loading)?'경기 일정을 불러오는 중이에요.':([...statuses.values()].some(r=>!r.ok)?'일부 출처를 확인하지 못했어요.<br>아래 연결 상태를 확인해 주세요.':'이 기간에 확인된 경기가 없어요.')):'선택한 팀이 없어요.<br>보고 싶은 팀을 눌러 주세요.'}</div>`;
  agenda.scrollTop=previousAgendaScroll;
- positionAgenda(agenda,list,`${year}-${month}|${selectedDay||''}|${[...active].sort().join(',')}`);
+ positionAgenda(agenda,list,`${year}-${month}|${selectedDay||''}|${[...active].sort().join(',')}|${mobileAgenda}`);
  document.querySelectorAll('.opponent-logo').forEach(img=>img.addEventListener('error',()=>{if(img.src.includes('6399bb707aacb.png')){img.src='/logos/ns.png';}else{img.style.display='none';}},{once:true}));
  const upcoming=visible.find(e=>e.time&&!['종료','취소','연기'].includes(e.status)&&new Date(`${e.date}T${e.time||'시간 미정'}:00+09:00`)>new Date());
  $('next-title').textContent=upcoming?upcoming.title:'다음 경기를 기다리는 중';
@@ -105,3 +111,5 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!currentM
 if(document.modelContext?.registerTool){try{document.modelContext.registerTool({name:'read_matchday_schedule',description:'현재 달의 팀별 경기 및 연결 상태를 조회합니다.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:true},execute(input){if(!input||Object.keys(input).length)throw Error('빈 객체를 입력하세요.');return {month:year+'-'+pad(month+1),events:events.filter(e=>active.has(e.team)),sources:Object.fromEntries(statuses)};}});}catch{}}
 
 
+
+window.matchMedia('(max-width:700px)').addEventListener('change',()=>{agendaPositionKey='';render();});
