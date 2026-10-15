@@ -38,10 +38,15 @@ function matchResult(e){
  const own=Number(score[index+1]),other=Number(score[2-index]),result=own===other?'무':own>other?'승':'패';
  return '<span class="match-result result-'+(result==='승'?'win':result==='패'?'loss':'draw')+'" aria-label="응원팀 '+result+'">'+result+'</span>';
 }
-function agendaEventsForView(monthly,visible,day,currentMonth,todayDate,mobile){
- if(day)return visible.filter(e=>e.date===day);
- if(!mobile||!todayDate.startsWith(currentMonth))return monthly;
- return [...monthly.filter(e=>e.date>=todayDate),...monthly.filter(e=>e.date<todayDate)];
+function agendaPresentation(monthly,visible,day,currentMonth,todayDate){
+ if(day)return {list:visible.filter(e=>e.date===day),nextId:null};
+ if(!todayDate.startsWith(currentMonth))return {list:monthly,nextId:null};
+ const available=e=>!['취소','연기'].includes(e.status);
+ const hasToday=monthly.some(e=>e.date===todayDate&&available(e));
+ const ahead=monthly.filter(e=>e.date>=todayDate&&available(e));
+ const rest=monthly.filter(e=>!(e.date>=todayDate&&available(e)));
+ const next=hasToday?null:ahead.find(e=>e.date>todayDate&&e.status!=='종료');
+ return {list:[...ahead,...rest],nextId:next?.id??null};
 }
 function render(){
  $('teams').innerHTML=teams.map(t=>`<button class="team-filter" data-team="${t.id}" aria-pressed="${active.has(t.id)}" aria-label="${t.name} 일정만 보기">${sigil(t)}<span class="team-name">${t.name}<small>${t.sport}</small></span><span class="check">${active.has(t.id)?'✓':''}</span></button>`).join('');
@@ -55,12 +60,12 @@ function render(){
  document.querySelectorAll('[data-date]').forEach(b=>b.onclick=()=>{selectedDay=selectedDay===b.dataset.date?null:b.dataset.date;const d=b.dataset.date.split('-').map(Number);if(d[0]!==year||d[1]-1!==month){year=d[0];month=d[1]-1;render();loadMonth();}else render();});
  $('count').textContent=`등록된 일정 ${monthly.length}개`;
  const mobileAgenda=window.matchMedia('(max-width:700px)').matches;
- const list=agendaEventsForView(monthly,visible,selectedDay,prefix,today,mobileAgenda);
+ const {list,nextId}=agendaPresentation(monthly,visible,selectedDay,prefix,today);
  $('agenda-title').textContent=selectedDay?dayLabel(selectedDay):`${month+1}월 경기 일정`;$('reset-day').hidden=!selectedDay;
  const agenda=$('agenda'),previousAgendaScroll=agenda.scrollTop;
- $('agenda').innerHTML=list.length?list.map(e=>{const t=teamOf(e.team);return `<article class="match-card${e.date===today?' agenda-today':''}" data-match-date="${e.date}"><div class="match-top"><span>${dayLabel(e.date)}${e.date===today?'<strong class="agenda-today-badge">오늘</strong>':''}</span><time datetime="${e.date}T${e.time||'시간 미정'}:00+09:00">${e.time||'시간 미정'} KST · ${escapeHTML(e.status||'예정')}</time></div><div class="match-main">${e.participants?.length===2?"":sigil(t)}<h3 class="matchup">${matchup(e)}${e.score?`<strong class="score">${escapeHTML(e.score)}${matchResult(e)}</strong>`:""}</h3></div><p>${escapeHTML(e.venue)} · <a href="${escapeHTML(e.source||t.source)}" target="_blank" rel="noopener noreferrer">일정 출처</a></p></article>`;}).join(''):`<div class="empty">${active.size?([...statuses.values()].some(r=>r.loading)?'경기 일정을 불러오는 중이에요.':([...statuses.values()].some(r=>!r.ok)?'일부 출처를 확인하지 못했어요.<br>아래 연결 상태를 확인해 주세요.':'이 기간에 확인된 경기가 없어요.')):'선택한 팀이 없어요.<br>보고 싶은 팀을 눌러 주세요.'}</div>`;
+ $('agenda').innerHTML=list.length?list.map(e=>{const t=teamOf(e.team);return `<article class="match-card${e.date===today?' agenda-today':e.id===nextId?' agenda-upcoming':''}" data-match-date="${e.date}"><div class="match-top"><span>${dayLabel(e.date)}${e.date===today?'<strong class="agenda-today-badge">오늘</strong>':e.id===nextId?'<strong class="agenda-upcoming-badge">다가오는 경기</strong>':''}</span><time datetime="${e.date}T${e.time||'시간 미정'}:00+09:00">${e.time||'시간 미정'} KST · ${escapeHTML(e.status||'예정')}</time></div><div class="match-main">${e.participants?.length===2?"":sigil(t)}<h3 class="matchup">${matchup(e)}${e.score?`<strong class="score">${escapeHTML(e.score)}${matchResult(e)}</strong>`:""}</h3></div><p>${escapeHTML(e.venue)} · <a href="${escapeHTML(e.source||t.source)}" target="_blank" rel="noopener noreferrer">일정 출처</a></p></article>`;}).join(''):`<div class="empty">${active.size?([...statuses.values()].some(r=>r.loading)?'경기 일정을 불러오는 중이에요.':([...statuses.values()].some(r=>!r.ok)?'일부 출처를 확인하지 못했어요.<br>아래 연결 상태를 확인해 주세요.':'이 기간에 확인된 경기가 없어요.')):'선택한 팀이 없어요.<br>보고 싶은 팀을 눌러 주세요.'}</div>`;
  agenda.scrollTop=previousAgendaScroll;
- positionAgenda(agenda,list,`${year}-${month}|${selectedDay||''}|${[...active].sort().join(',')}|${mobileAgenda}`);
+ positionAgenda(agenda,list,`${year}-${month}|${selectedDay||''}|${[...active].sort().join(',')}|${mobileAgenda}|${list[0]?.id||''}`);
  document.querySelectorAll('.opponent-logo').forEach(img=>img.addEventListener('error',()=>{if(img.src.includes('6399bb707aacb.png')){img.src='/logos/ns.png';}else{img.style.display='none';}},{once:true}));
  const upcoming=visible.find(e=>e.time&&!['종료','취소','연기'].includes(e.status)&&new Date(`${e.date}T${e.time||'시간 미정'}:00+09:00`)>new Date());
  $('next-title').textContent=upcoming?upcoming.title:'다음 경기를 기다리는 중';
