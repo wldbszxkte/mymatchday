@@ -33,3 +33,6 @@
 
 /* Nearest scheduled match when today has no games, on every screen size. */
 .match-card.agenda-upcoming{background:#effaff;border-radius:8px;box-shadow:inset 3px 0 #8bcde8;padding-left:12px;padding-right:12px;margin-top:5px;margin-bottom:5px}.agenda-upcoming-badge{display:inline-block;margin-left:7px;padding:2px 6px;border-radius:4px;background:#dff3fb;color:#39738c;font-size:10px;line-height:1.5}.match-top>span{line-height:1.8}
+
+/* Keep only normal spacing below the last card. */
+.agenda-panel #agenda{padding-bottom:15px;scroll-behavior:auto;overflow-anchor:none}

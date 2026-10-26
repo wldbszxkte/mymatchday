@@ -19,18 +19,27 @@ const sigil=t=>`<span class="team-sigil" style="--color:${t.color}"><img src="/l
 function logoURL(src){try{return new URL(src).hostname==='owcdn.net'?'/.netlify/functions/logo?src='+encodeURIComponent(src):src;}catch{return '';}}
 function matchup(e){const replacements={G2:"/logos/lol/g2.png",KRX:"/logos/lol/krx.png",DK:"/logos/lol/dk.png",TSW:"/logos/lol/tsw.png"};if(!Array.isArray(e.participants)||e.participants.length!==2)return escapeHTML(e.title);return e.participants.map(p=>`<span class="match-team">${(p.logo||(["hle","blg"].includes(e.team)&&replacements[p.name]))?`<img class="opponent-logo" src="${escapeHTML(["hle","blg"].includes(e.team)&&replacements[p.name]?replacements[p.name]:logoURL(p.logo))}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<span>${escapeHTML(p.name==='Nongshim RedForce'?'농심 레드포스':p.name)}</span></span>`).join('<span class="versus">vs</span>');}
 function dayLabel(date){return new Date(`${date}T12:00:00+09:00`).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',month:'long',day:'numeric',weekday:'short'});}
-let agendaPositionKey='';
+let agendaPositionKey='',agendaAutoPosition=true,agendaPositionFrame=null;
 function positionAgenda(agenda,list,key){
- if(agendaPositionKey===key)return;
- if(selectedDay||!today.startsWith(year+'-'+pad(month+1))){agenda.style.paddingBottom='15px';agenda.scrollTop=0;agendaPositionKey=key;return;}
- const index=list.findIndex(e=>e.date>=today&&!['취소','연기'].includes(e.status)&&(e.date===today||e.status!=='종료'));
- if(index<0){agenda.style.paddingBottom='15px';return;}
- const target=agenda.children[index];
- if(!target)return;
- agenda.style.paddingBottom=Math.max(15,agenda.clientHeight-target.getBoundingClientRect().height)+'px';
- agenda.scrollTop+=target.getBoundingClientRect().top-agenda.getBoundingClientRect().top;
- agendaPositionKey=key;
+ // Never leave artificial empty space after the final match.
+ agenda.style.paddingBottom='15px';
+ if(agendaPositionKey!==key){agendaPositionKey=key;agendaAutoPosition=true;}
+ if(!agendaAutoPosition)return;
+ cancelAnimationFrame(agendaPositionFrame);
+ const align=()=>{
+  if(agendaPositionKey!==key||!agendaAutoPosition||!agenda.clientHeight)return;
+  if(selectedDay||!today.startsWith(year+'-'+pad(month+1))){agenda.scrollTop=0;return;}
+  const index=list.findIndex(e=>e.date>=today&&!['취소','연기'].includes(e.status)&&(e.date===today||e.status!=='종료'));
+  if(index<0)return;
+  const target=agenda.children[index];if(!target)return;
+  const offset=target.getBoundingClientRect().top-agenda.getBoundingClientRect().top;
+  agenda.scrollTop=Math.max(0,Math.min(agenda.scrollHeight-agenda.clientHeight,agenda.scrollTop+offset));
+ };
+ align();
+ // Mobile layout/visibility can settle after the DOM is replaced.
+ agendaPositionFrame=requestAnimationFrame(align);
 }
+for(const type of ['wheel','touchstart','pointerdown','keydown'])$('agenda').addEventListener(type,()=>{agendaAutoPosition=false;cancelAnimationFrame(agendaPositionFrame);},{passive:true});
 function matchResult(e){
  if(e.status!=='종료'||!e.score||e.team==='f1')return '';
  const score=e.score.match(/^(\d+)\s*:\s*(\d+)$/);if(!score)return '';
