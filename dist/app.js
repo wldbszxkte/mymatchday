@@ -1,8 +1,8 @@
 'use strict';
 const teams=[
-{id:'daegu',name:'대구 FC',short:'대구',sigil:'DG',sport:'축구 · K리그',color:'#58a8db',source:'https://m.sports.naver.com/kfootball/schedule/index',status:'일부 일정 확인 · KST 스코어'},
-{id:'barca',name:'FC 바르셀로나',short:'바르사',sigil:'FCB',sport:'축구 · 라리가 / UCL',color:'#aa508d',source:'https://m.sports.naver.com/wfootball/schedule/index',status:'10월 일정 확인 · 구단 공식'},
-{id:'lotte',name:'롯데 자이언츠',short:'롯데',sigil:'G',sport:'야구 · KBO',color:'#15345f',source:'https://m.sports.naver.com/kbaseball/schedule/index',status:'잔여 일정 확인 · LKBO'},
+{id:'daegu',name:'대구 FC',short:'대구',sigil:'DG',sport:'축구 · K리그',color:'#58a8db',source:'https://www.kleague.com/schedule.do?leagueId=2',status:'일부 일정 확인 · KST 스코어'},
+{id:'barca',name:'FC 바르셀로나',short:'바르사',sigil:'FCB',sport:'축구 · 라리가 / UCL',color:'#aa508d',source:'https://www.fcbarcelona.com/en/futbol/primer-equipo/calendario',status:'10월 일정 확인 · 구단 공식'},
+{id:'lotte',name:'롯데 자이언츠',short:'롯데',sigil:'G',sport:'야구 · KBO',color:'#15345f',source:'https://www.koreabaseball.com/Schedule/Schedule.aspx',status:'잔여 일정 확인 · LKBO'},
 {id:'hle',name:'HLE',short:'HLE',sigil:'HLE',sport:'LoL · LCK',color:'#eb9555',source:'https://lolesports.com/ko-KR/',status:'다음 대진 확인 필요'},
 {id:'blg',name:'BLG',short:'BLG',sigil:'BLG',sport:'LoL · LPL',color:'#62bbd1',source:'https://lolesports.com/ko-KR/',status:'다음 대진 확인 필요'},
 {id:'ns',name:'농심 레드포스',short:'농심',sigil:'NS',sport:'발로란트 · VCT',color:'#c76b73',source:'https://www.vlr.gg/team/11060/nongshim-redforce',status:'다음 대진 확인 필요'},
