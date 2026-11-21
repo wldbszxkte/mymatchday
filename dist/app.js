@@ -17,7 +17,14 @@ let year=kstNow.getFullYear(),month=kstNow.getMonth(),selectedDay=null,active=ne
 const teamOf=id=>teams.find(t=>t.id===id);
 const sigil=t=>`<span class="team-sigil" style="--color:${t.color}"><img src="/logos/${t.id}.${t.id==='f1'?'svg':'png'}" alt="${t.name} 로고"></span>`;
 function logoURL(src){try{return new URL(src).hostname==='owcdn.net'?'/.netlify/functions/logo?src='+encodeURIComponent(src):src;}catch{return '';}}
-function matchup(e){const replacements={G2:"/logos/lol/g2.png",KRX:"/logos/lol/krx.png",DK:"/logos/lol/dk.png",TSW:"/logos/lol/tsw.png"};if(!Array.isArray(e.participants)||e.participants.length!==2)return escapeHTML(e.title);return e.participants.map(p=>`<span class="match-team">${(p.logo||(["hle","blg"].includes(e.team)&&replacements[p.name]))?`<img class="opponent-logo" src="${escapeHTML(["hle","blg"].includes(e.team)&&replacements[p.name]?replacements[p.name]:logoURL(p.logo))}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}<span>${escapeHTML(p.name==='Nongshim RedForce'?'농심 레드포스':p.name)}</span></span>`).join('<span class="versus">vs</span>');}
+function matchup(e){const replacements={G2:"/logos/lol/g2.png",KRX:"/logos/lol/krx.png",DK:"/logos/lol/dk.png",TSW:"/logos/lol/tsw.png"};if(!Array.isArray(e.participants)||e.participants.length!==2)return `<span class="match-title">${escapeHTML(koText(e.title))}</span>`+(e.score?`<strong class="score">${escapeHTML(e.score)}</strong>`:'');const sc=String(e.score||'').match(/^(\d+)\s*:\s*(\d+)$/),mine=ownIndex(e);return e.participants.map((p,i)=>{const logo=["hle","blg"].includes(e.team)&&replacements[p.name]?replacements[p.name]:p.logo?logoURL(p.logo):'';const own=sc?Number(sc[i+1]):null,other=sc?Number(sc[2-i]):null;return `<span class="match-team${sc&&own>other?' is-winner':''}">${logo?`<img class="opponent-logo" src="${escapeHTML(logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:'<span class="logo-blank" aria-hidden="true"></span>'}<span class="team-label">${escapeHTML(koText(p.name==='Nongshim RedForce'?'농심 레드포스':p.name))}</span>${sc?`<span class="team-score">${own}</span>`:'<span></span>'}<span class="row-result">${i===mine?matchResult(e):''}</span></span>`;}).join('<span class="versus">vs</span>')+(e.score&&!sc?`<strong class="score">${escapeHTML(e.score)}</strong>`:'');}
+// One match = one <article> (positionAgenda indexes agenda.children by match), date header lives inside the first match of each day.
+function matchCard(e,firstOfDay,upcoming){const t=teamOf(e.team),st=e.status==='종료'?'done':['취소','연기'].includes(e.status)?'off':'plan';return `<article class="match-card${firstOfDay?' first-of-day':''}${e.date===today?' agenda-today':''}${upcoming?' agenda-upcoming':''}" data-match-date="${e.date}">${firstOfDay?`<h3 class="day-head">${dayLabel(e.date)}${e.date===today?'<span class="agenda-today-badge">오늘</span>':''}</h3>`:''}<div class="match-row${e.participants?.length===2?'':' single'}"><div class="match-when"><time datetime="${e.date}T${e.time||'00:00'}:00+09:00">${e.time||'미정'}</time><span class="match-status status-${st}">${upcoming?'다음 경기':escapeHTML(e.status||'예정')}</span></div><div class="match-main">${e.participants?.length===2?'':sigil(t)}<div class="matchup">${matchup(e)}</div></div><div class="match-side">${matchResult(e)}</div></div><p class="match-foot"><span class="match-league">${escapeHTML(t.short)}</span><span>${escapeHTML(koText(e.venue))}</span><a href="${escapeHTML(e.source||t.source)}" target="_blank" rel="noopener noreferrer">출처</a></p></article>`;}
+// Logos come in every shape (round badges, tall crests, wide wordmarks). Size each by its aspect ratio so they read as the same visual weight.
+function fitLogo(img){const r=img.naturalWidth/img.naturalHeight;if(!img.naturalWidth||!isFinite(r)||!r)return;const base=parseFloat(getComputedStyle(img).getPropertyValue('--logo'))||26;let w=base*Math.sqrt(r),h=base/Math.sqrt(r);const maxW=base*1.5,maxH=base*1.12;if(w>maxW){w=maxW;h=w/r;}if(h>maxH){h=maxH;w=h*r;}img.style.width=w.toFixed(1)+'px';img.style.height=h.toFixed(1)+'px';}
+const LOGO_SELECTOR='.opponent-logo,.team-sigil img,.record-identity img';
+document.addEventListener('load',ev=>{const img=ev.target;if(img instanceof HTMLImageElement&&img.matches(LOGO_SELECTOR))fitLogo(img);},true);
+function fitLoadedLogos(root=document){root.querySelectorAll(LOGO_SELECTOR).forEach(img=>{if(img.complete)fitLogo(img);});}
 function dayLabel(date){return new Date(`${date}T12:00:00+09:00`).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',month:'long',day:'numeric',weekday:'short'});}
 let agendaPositionKey='',agendaAutoPosition=true,agendaPositionFrame=null;
 function positionAgenda(agenda,list,key){
@@ -40,11 +47,12 @@ function positionAgenda(agenda,list,key){
  agendaPositionFrame=requestAnimationFrame(align);
 }
 for(const type of ['wheel','touchstart','pointerdown','keydown'])$('agenda').addEventListener(type,()=>{agendaAutoPosition=false;cancelAnimationFrame(agendaPositionFrame);},{passive:true});
+const OWN_ALIASES={lotte:/롯데|lotte/i,daegu:/대구|daegu/i,barca:/바르셀로나|barcelona/i,hle:/^HLE$|Hanwha Life/i,blg:/^BLG$|Bilibili/i,ns:/농심|Nongshim/i};
+const ownIndex=e=>(e.participants||[]).findIndex(p=>OWN_ALIASES[e.team]?.test(p.name));
 function matchResult(e){
  if(e.status!=='종료'||!e.score||e.team==='f1')return '';
  const score=e.score.match(/^(\d+)\s*:\s*(\d+)$/);if(!score)return '';
- const aliases={lotte:/롯데|lotte/i,daegu:/대구|daegu/i,barca:/바르셀로나|barcelona/i,hle:/^HLE$|Hanwha Life/i,blg:/^BLG$|Bilibili/i,ns:/농심|Nongshim/i};
- const index=(e.participants||[]).findIndex(p=>aliases[e.team]?.test(p.name));if(index<0)return '';
+ const index=ownIndex(e);if(index<0)return '';
  const own=Number(score[index+1]),other=Number(score[2-index]),result=own===other?'무':own>other?'승':'패';
  return '<span class="match-result result-'+(result==='승'?'win':result==='패'?'loss':'draw')+'" aria-label="응원팀 '+result+'">'+result+'</span>';
 }
@@ -58,28 +66,29 @@ function agendaPresentation(monthly,visible,day,currentMonth,todayDate){
  return {list:monthly,nextId:next?.id??null};
 }
 function render(){
- $('teams').innerHTML=teams.map(t=>`<button class="team-filter" data-team="${t.id}" aria-pressed="${active.has(t.id)}" aria-label="${t.name} 일정만 보기">${sigil(t)}<span class="team-name">${t.name}<small>${t.sport}</small></span><span class="check">${active.has(t.id)?'✓':''}</span></button>`).join('');
+ $('teams').innerHTML=teams.map(t=>`<button class="team-filter" style="--color:${t.color}" data-team="${t.id}" aria-pressed="${active.has(t.id)}" aria-label="${t.name} 일정만 보기">${sigil(t)}<span class="team-name"><span class="team-full">${t.name}</span><span class="team-short">${t.short}</span><small>${t.sport}</small></span><span class="check">${active.has(t.id)?'✓':''}</span></button>`).join('');
  document.querySelectorAll('[data-team]').forEach(b=>b.onclick=()=>{active=active.size===1&&active.has(b.dataset.team)?new Set(teams.map(t=>t.id)):new Set([b.dataset.team]);render();});
  $('all-teams').setAttribute('aria-pressed',String(active.size===teams.length));
  $('month').textContent=`${year}년 ${month+1}월`;$('month-picker').value=`${year}-${pad(month+1)}`;
  const visible=events.filter(e=>active.has(e.team)).sort((a,b)=>(a.date+(a.time||'99:99')).localeCompare(b.date+(b.time||'99:99'))), prefix=`${year}-${pad(month+1)}`;
  const monthly=visible.filter(e=>e.date.startsWith(prefix));
  const first=new Date(year,month,1).getDay(),days=new Date(year,month+1,0).getDate(),cells=Math.ceil((first+days)/7)*7;
- $('calendar').innerHTML=Array.from({length:cells},(_,i)=>{const d=new Date(year,month,i-first+1),date=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,ev=visible.filter(e=>e.date===date);return `<button class="day ${d.getMonth()!==month?'dim':''} ${date===today?'is-today':''} ${date===selectedDay?'selected':''}" data-date="${date}" aria-pressed="${date===selectedDay}" aria-label="${dayLabel(date)}, 등록된 일정 ${ev.length}개"><span class="day-number">${d.getDate()}</span>${ev.slice(0,2).map(e=>`<span class="event-chip" style="--color:${teamOf(e.team).color}" title="${e.time||'시간 미정'} ${escapeHTML(e.title)}"><span class="chip-team">${teamOf(e.team).short}</span><span class="chip-time">${e.time||'미정'}</span></span>`).join('')}${ev.length>2?`<span class="more">+${ev.length-2}경기</span>`:''}</button>`;}).join('');
+ $('calendar').innerHTML=Array.from({length:cells},(_,i)=>{const d=new Date(year,month,i-first+1),date=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,ev=visible.filter(e=>e.date===date);return `<button class="day ${d.getMonth()!==month?'dim':''} ${date===today?'is-today':''} ${date===selectedDay?'selected':''}" data-date="${date}" aria-pressed="${date===selectedDay}" aria-label="${dayLabel(date)}, 등록된 일정 ${ev.length}개"><span class="day-number">${d.getDate()}</span>${ev.slice(0,2).map(e=>`<span class="event-chip" style="--color:${teamOf(e.team).color}" data-status="${e.status==='종료'?'done':'plan'}" title="${e.time||'시간 미정'} ${escapeHTML(e.title)}"><img class="chip-logo" src="/logos/${e.team}.${e.team==='f1'?'svg':'png'}" alt=""><span class="chip-team">${teamOf(e.team).short}</span><span class="chip-time">${e.time||'미정'}</span></span>`).join('')}${ev.length>2?`<span class="more">+${ev.length-2}</span>`:''}</button>`;}).join('');
  document.querySelectorAll('[data-date]').forEach(b=>b.onclick=()=>{selectedDay=selectedDay===b.dataset.date?null:b.dataset.date;const d=b.dataset.date.split('-').map(Number);if(d[0]!==year||d[1]-1!==month){year=d[0];month=d[1]-1;render();loadMonth();}else render();});
  $('count').textContent=`등록된 일정 ${monthly.length}개`;
  const mobileAgenda=window.matchMedia('(max-width:700px)').matches;
  const {list,nextId}=agendaPresentation(monthly,visible,selectedDay,prefix,today);
  $('agenda-title').textContent=selectedDay?dayLabel(selectedDay):`${month+1}월 경기 일정`;$('reset-day').hidden=!selectedDay;
  const agenda=$('agenda'),previousAgendaScroll=agenda.scrollTop;
- $('agenda').innerHTML=list.length?list.map(e=>{const t=teamOf(e.team);return `<article class="match-card${e.date===today?' agenda-today':e.id===nextId?' agenda-upcoming':''}" data-match-date="${e.date}"><div class="match-top"><span>${dayLabel(e.date)}${e.date===today?'<strong class="agenda-today-badge">오늘</strong>':e.id===nextId?'<strong class="agenda-upcoming-badge">다가오는 경기</strong>':''}</span><time datetime="${e.date}T${e.time||'시간 미정'}:00+09:00">${e.time||'시간 미정'} KST · ${escapeHTML(e.status||'예정')}</time></div><div class="match-main">${e.participants?.length===2?"":sigil(t)}<h3 class="matchup">${matchup(e)}${e.score?`<strong class="score">${escapeHTML(e.score)}${matchResult(e)}</strong>`:""}</h3></div><p>${escapeHTML(e.venue)} · <a href="${escapeHTML(e.source||t.source)}" target="_blank" rel="noopener noreferrer">일정 출처</a></p></article>`;}).join(''):`<div class="empty">${active.size?([...statuses.values()].some(r=>r.loading)?'경기 일정을 불러오는 중이에요.':([...statuses.values()].some(r=>!r.ok)?'일부 출처를 확인하지 못했어요.<br>아래 연결 상태를 확인해 주세요.':'이 기간에 확인된 경기가 없어요.')):'선택한 팀이 없어요.<br>보고 싶은 팀을 눌러 주세요.'}</div>`;
+ $('agenda').innerHTML=list.length?list.map((e,i)=>matchCard(e,!i||list[i-1].date!==e.date,e.id===nextId)).join(''):`<div class="empty">${active.size?([...statuses.values()].some(r=>r.loading)?'경기 일정을 불러오는 중이에요.':([...statuses.values()].some(r=>!r.ok)?'일부 출처를 확인하지 못했어요.<br>아래 연결 상태를 확인해 주세요.':'이 기간에 확인된 경기가 없어요.')):'선택한 팀이 없어요.<br>보고 싶은 팀을 눌러 주세요.'}</div>`;
  agenda.scrollTop=previousAgendaScroll;
  positionAgenda(agenda,list,`${year}-${month}|${selectedDay||''}|${[...active].sort().join(',')}|${mobileAgenda}|${nextId||list.find(e=>e.date===today)?.id||''}`);
  document.querySelectorAll('.opponent-logo').forEach(img=>img.addEventListener('error',()=>{if(img.src.includes('6399bb707aacb.png')){img.src='/logos/ns.png';}else{img.style.display='none';}},{once:true}));
+ fitLoadedLogos();
  const upcoming=visible.find(e=>e.time&&!['종료','취소','연기'].includes(e.status)&&new Date(`${e.date}T${e.time||'시간 미정'}:00+09:00`)>new Date());
- $('next-title').textContent=upcoming?upcoming.title:'다음 경기를 기다리는 중';
- $('next-meta').textContent=upcoming?`${teamOf(upcoming.team).sport} · ${upcoming.venue}`:'등록된 일정 중 다가오는 경기가 없습니다.';
- $('next-time').innerHTML=upcoming?`<small>${dayLabel(upcoming.date)}</small>${upcoming.time}`:'';
+ $('next-title').innerHTML=upcoming?sigil(teamOf(upcoming.team))+'<span>'+escapeHTML(koText(upcoming.title))+'</span>':'다음 경기를 기다리는 중';document.querySelector('.next').style.setProperty('--color',upcoming?teamOf(upcoming.team).color:'#ccfa58');
+ $('next-meta').textContent=upcoming?`${teamOf(upcoming.team).name} · ${koText(upcoming.venue)}`:'등록된 일정 중 다가오는 경기가 없습니다.';
+ fitLoadedLogos(document.querySelector('.next'));$('next-time').innerHTML=upcoming?`<small>${dayLabel(upcoming.date)}</small>${upcoming.time}`:'';
 }
 $('today-label').textContent=kstNow.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
 $('prev').onclick=()=>move(-1);$('next').onclick=()=>move(1);
